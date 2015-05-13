@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<extension id="twitternotifier">
+<extension id="twitternotifier" status="released" xmlns="http://getsymphony.com/schemas/extension/1.0">
 	<name>Twitter Notifier</name>
 	<description>Notify Twitter when entries are posted.</description>
 	<repo type="github">https://github.com/designermonkey/twitternotifier</repo>

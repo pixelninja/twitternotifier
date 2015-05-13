@@ -1,10 +1,11 @@
 <?php
 
 require_once(TOOLKIT . '/class.administrationpage.php');
-require_once(EXTENSIONS . '/twitternotifier/lib/twitteroauth/twitteroauth.php');
+require_once(EXTENSIONS . '/twitternotifier/lib/twitteroauth/autoload.php');
 
-class contentExtensionTwitterNotifierAccounts extends AdministrationPage
-{
+use Abraham\TwitterOAuth\TwitterOAuth;
+
+class contentExtensionTwitterNotifierAccounts extends AdministrationPage {
 	protected $_driver = null;
 	protected $_uri = null;
 	protected $_account = null;
@@ -17,20 +18,16 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 	protected $_table_columns = null;
 	protected $_table_direction = 'asc';
 
-	public function __construct(&$parent)
-	{
-		parent::__construct($parent);
+	public function __construct() {
+		parent::__construct();
 
 		$this->_driver = Symphony::ExtensionManager()->create('twitternotifier');
 		$this->_uri = URL . "/symphony/extension/twitternotifier";
 	}
 
-	public function build($context)
-	{
-		if(isset($context[0]))
-		{
-			switch($context[0])
-			{
+	public function build($context) {
+		if(isset($context[0])) {
+			switch($context[0]) {
 				case 'new':
 					$this->_mode = 'new';
 					$this->__prepareNew($context);
@@ -41,26 +38,22 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 				break;
 			}
 		}
-		else
-		{
+		else {
 			$this->__prepareIndex();
 		}
 		parent::build($context);
 	}
 
-	public function __prepareNew($context)
-	{
+	public function __prepareNew($context) {
 		$this->_cookie = new Cookie(SYM_COOKIE_PREFIX . 'twitter_notifier', TWO_WEEKS, __SYM_COOKIE_PATH__);
 
-		if($this->_cookie->get('id'))
-		{
+		if($this->_cookie->get('id')) {
 			$id = $this->_cookie->get('id');
 			$this->_cookie->set('id', null);
 
 			header('Location: ' . $this->_uri . '/accounts/new/' . $id . '/');
 		}
-		else
-		{
+		else {
 			$this->_uri .= "/connect/";
 		}
 
@@ -68,31 +61,26 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 			SELECT * FROM `".$this->_driver->table."`
 		", 'id');
 
-		if($context[1])
-		{
+		if($context[1]) {
 			$this->_account = Symphony::Database()->fetchRow(0, "
 				SELECT * FROM `" . $this->_driver->table . "` WHERE `id` = '" . $context[1] . "'
 			");
 		}
 	}
 
-	public function __prepareEdit($context)
-	{
+	public function __prepareEdit($context) {
 		$this->_uri .= "/connect/" . $context[1] . "/";
 		$this->_account = Symphony::Database()->fetchRow(0, "
 			SELECT * FROM `" . $this->_driver->table . "` WHERE `id` = '" . $context[1] . "'
 		");
 	}
 
-	public function __viewNew()
-	{
+	public function __viewNew() {
 		$this->__viewEdit();
 	}
 
-	public function __viewEdit()
-	{
-
-	// Build Twitter Fieldset ---------------------------------------------------------
+	public function __viewEdit() {
+        // Build Twitter Fieldset ---------------------------------------------------------
 
 		$this->setPageType('form');
 		$this->setTitle(__('%1$s &ndash; %2$s', array(__('Twitter Accounts'), __('Symphony'))));
@@ -123,7 +111,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		}
 		else
 		{
-			$label = Widget::Label(__('Your Twitter account is authrised as...'));
+			$label = Widget::Label(__('Your Twitter account is authrised as:'));
 		}
 
 		$fieldset->appendChild($label);
@@ -191,6 +179,17 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		$label->appendChild(Widget::Select('fields[field_msg]', $options, array('id' => 'field_msg')));
 		$div->appendChild($label);
 
+	// Custom Message Field
+		$label = Widget::Label(__('Custom Message (This will prefix the above Field parameter)'));
+		$value = '';
+		if($this->_account['custom_msg']) {
+			$value = $this->_account['custom_msg'];
+		}
+		$label->appendChild(Widget::Input('fields[custom_msg]', $value, 'text', array('id' => 'custom_msg')));
+		$div->appendChild($label);
+
+        
+        
 	// Authors
 		$label = Widget::Label(__('Authors'));
 		$authors = Symphony::Database()->fetch("
@@ -217,6 +216,15 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 
 		$div = new XMLElement('div');
 		$div->setAttribute('class', 'group');
+
+	// Custom URL Field
+		$label = Widget::Label(__('Base URL'));
+		$value = '';
+		if($this->_account['base_url']) {
+			$value = $this->_account['base_url'];
+		}
+		$label->appendChild(Widget::Input('fields[base_url]', $value, 'text', array('id' => 'base_url')));
+		$div->appendChild($label);
 
 	// Page
 		$label = Widget::Label(__('Page'));
@@ -263,8 +271,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		$this->Form->appendChild($div);
 	}
 
-	public function __prepareIndex()
-	{
+	public function __prepareIndex() {
 		// List the table columns
 		$this->_table_columns = array(
 			'screen_name'	=> array(__('Account'), true),
@@ -286,7 +293,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 					? $_GET['pg']
 					: 1
 			),
-			'length'	=> Symphony::Engine()->Configuration->get('pagination_maximum_rows', 'symphony')
+			'length'	=> Symphony::Configuration()->get('pagination_maximum_rows', 'symphony')
 		);
 
 		$this->_accounts = Symphony::Database()->fetch("
@@ -314,8 +321,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		);
 	}
 
-	public function __viewIndex()
-	{
+	public function __viewIndex() {
 		$this->setPageType('table');
 		$this->setTitle(__('Symphony') . ' &ndash; ' . __('Twitter Accounts'));
 
@@ -330,14 +336,10 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		$authors = array();
 
 		// Columns with sorting
-		foreach($this->_table_columns as $column => $values)
-		{
-			if($values[1])
-			{
-				if($column == $this->_table_column)
-				{
-					if($this->_table_direction == 'desc')
-					{
+		foreach($this->_table_columns as $column => $values) {
+			if($values[1]) {
+				if($column == $this->_table_column) {
+					if($this->_table_direction == 'desc') {
 						$direction = 'asc';
 						$label = 'ascending';
 					}
@@ -347,8 +349,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 						$label = 'descending';
 					}
 				}
-				else
-				{
+				else {
 					$direction = 'asc';
 					$label = 'ascending';
 				}
@@ -369,28 +370,24 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 
 				$thead[] = array($anchor, 'col');
 			}
-			else
-			{
+			else {
 				$thead[] = array($values[0], 'col');
 			}
 		}
 
 		$SectionManager = new SectionManager(Symphony::Engine());
 
-		foreach($SectionManager->fetch(NULL, 'ASC', 'sortorder') as $section)
-		{
+		foreach($SectionManager->fetch(NULL, 'ASC', 'sortorder') as $section) {
 			$sections[$section->get('id')] = $section->get('name');
 		}
 
 		$AuthorManager = new AuthorManager(Symphony::Engine());
 
-		foreach($AuthorManager->fetch() as $author)
-		{
+		foreach($AuthorManager->fetch() as $author) {
 			$authors[$author->get('id')] = $author->get('first_name')." ".$author->get('last_name');
 		}
 
-		if(!is_array($this->_accounts) || empty($this->_accounts))
-		{
+		if(!is_array($this->_accounts) || empty($this->_accounts)) {
 			$tbody = array(
 				Widget::TableRow(array(
 					Widget::TableData(
@@ -399,10 +396,8 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 				))
 			);
 		}
-		else
-		{
-			foreach($this->_accounts as $account)
-			{
+		else {
+			foreach($this->_accounts as $account) {
 				// Column 1
 				$col_account = Widget::TableData(Widget::Anchor(
 					$account['screen_name'],
@@ -445,8 +440,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 			}
 		}
 
-		$table = Widget::Table
-		(
+		$table = Widget::Table(
 			Widget::TableHead($thead), null,
 			Widget::TableBody($tbody)
 		);
@@ -544,21 +538,17 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		}
 	}
 
-	public function __actionIndex()
-	{
+	public function __actionIndex() {
 		$checked = (
 			(isset($_POST['items']) && is_array($_POST['items']))
 				? array_keys($_POST['items'])
 				: null
 		);
 
-		if(is_array($checked) && !empty($checked))
-		{
-			switch ($_POST['with-selected'])
-			{
+		if(is_array($checked) && !empty($checked)) {
+			switch ($_POST['with-selected']) {
 				case 'delete':
-					foreach ($checked as $id)
-					{
+					foreach ($checked as $id) {
 						Symphony::Database()->query("
 							DELETE FROM `tbl_authors_twitter_accounts` WHERE `id` = {$id}
 						");
@@ -568,8 +558,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 					break;
 
 				case 'status':
-					foreach($checked as $id)
-					{
+					foreach($checked as $id) {
 						$account = Symphony::Database()->fetch("
 							SELECT `status` FROM `tbl_authors_twitter_accounts` WHERE `id` = {$id}");
 						$status = ($account[0]['status'] == 'Active') ? 'Inactive' : 'Active';
@@ -581,9 +570,8 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		}
 	}
 
-	public function __actionEdit()
-	{
-		if(array_key_exists('save', $_POST['action'])){
+	public function __actionEdit() {
+		if(array_key_exists('save', $_POST['action'])) {
 
 			$authors = trim(implode(',',$_POST['fields']['authors']),',');
 
@@ -594,6 +582,8 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 					`section` = {$_POST['fields']['section']},
 					`field_param` = {$_POST['fields']['field_param']},
 					`field_msg` = {$_POST['fields']['field_msg']},
+					`custom_msg` = '{$_POST['fields']['custom_msg']}',
+					`base_url` = '{$_POST['fields']['base_url']}',
 					`page` = {$_POST['fields']['page']},
 					`params` = '{$_POST['fields']['params']}',
 					`authors` = '{$authors}',
@@ -603,8 +593,8 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 			");
 			header('Location: ' . URL . '/symphony/extension/twitternotifier/accounts/edit/' . $this->_account['id'] . '/saved/');
 		}
-		if(array_key_exists('delete', $_POST['action']))
-		{
+
+		if(array_key_exists('delete', $_POST['action'])) {
 			Symphony::Database()->query("
 				DELETE FROM `" . $this->_driver->table . "` WHERE `id` = '" . $this->_account['id'] . "'
 			");
@@ -612,11 +602,10 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 		}
 	}
 
-	public function __actionNew()
-	{
-		if(array_key_exists('save', $_POST['action'])){
+	public function __actionNew() {
+		if(array_key_exists('save', $_POST['action'])) {
 
-			$authors = trim(implode(',',$_POST['fields']['authors']),',');
+            $authors = trim(implode(',',$_POST['fields']['authors']),',');
 
 			Symphony::Database()->query("
 				UPDATE
@@ -625,6 +614,8 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 					`section` = {$_POST['fields']['section']},
 					`field_param` = {$_POST['fields']['field_param']},
 					`field_msg` = {$_POST['fields']['field_msg']},
+					`custom_msg` = '{$_POST['fields']['custom_msg']}',
+					`base_url` = '{$_POST['fields']['base_url']}',
 					`page` = {$_POST['fields']['page']},
 					`params` = '{$_POST['fields']['params']}',
 					`authors` = '{$authors}',
@@ -635,8 +626,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 			header('Location: ' . URL . '/symphony/extension/twitternotifier/accounts/edit/' . $this->_account['id'] . '/saved/');
 		}
 
-		if(array_key_exists('delete', $_POST['action']))
-		{
+		if(array_key_exists('delete', $_POST['action'])) {
 			Symphony::Database()->query("
 				DELETE FROM `" . $this->_driver->table . "` WHERE `id` = '" . $this->_account['id'] . "'
 			");
@@ -645,8 +635,7 @@ class contentExtensionTwitterNotifierAccounts extends AdministrationPage
 	}
 
 
-	public function generateLink($values)
-	{
+	public function generateLink($values) {
 		$values = array_merge(array(
 			'pg'	=> $this->_pagination->page,
 			'sort'	=> $this->_table_column,

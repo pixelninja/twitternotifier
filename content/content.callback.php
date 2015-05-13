@@ -1,37 +1,34 @@
 <?php
 
 require_once(TOOLKIT . '/class.administrationpage.php');
-require_once(EXTENSIONS . '/twitternotifier/lib/twitteroauth/twitteroauth.php');
+require_once(EXTENSIONS . '/twitternotifier/lib/twitteroauth/autoload.php');
 
-class contentExtensionTwitterNotifierCallback extends AdministrationPage
-{
+use Abraham\TwitterOAuth\TwitterOAuth;
+
+class contentExtensionTwitterNotifierCallback extends AdministrationPage {
 	protected $_driver = null;
 	protected $_account = null;
 	protected $TwitterOAuth = null;
 	protected $_cookie = null;
 
-	public function __construct(&$parent)
-	{
-		parent::__construct(&$parent);
+	public function __construct() {
+		parent::__construct();
 		$this->_driver = Symphony::ExtensionManager()->create('twitternotifier');
 	}
 
-	public function build($context)
-	{
+	public function build($context) {
 		$this->__prepareIndex();
 		parent::build($context);
 	}
 
-	public function __prepareIndex()
-	{
+	public function __prepareIndex() {
 		$this->_account = Symphony::Database()->fetch("
 			SELECT * FROM `".$this->_driver->table."` WHERE `oauth_token` = '".$_GET['oauth_token']."' LIMIT 1
 		");
 		$this->_account = current($this->_account);
 	}
 
-	public function __viewIndex()
-	{
+	public function __viewIndex() {
 		if(!isset($this->_account['oauth_token'])) return false;
 
 		$this->TwitterOAuth = new TwitterOAuth(
@@ -41,16 +38,15 @@ class contentExtensionTwitterNotifierCallback extends AdministrationPage
 			$this->_account['oauth_token_secret']
 		);
 
-		$access_token = $this->TwitterOAuth->getAccessToken($_GET['oauth_verifier']);
+        $access_token = $this->TwitterOAuth->oauth("oauth/access_token", array("oauth_verifier" => $_GET['oauth_verifier']));
 
 		$this->setTitle('%1$s &ndash; %2$s', array(__('Twitter Accounts'), __('Symphony')));
 		$this->appendSubheading(__('Twitter Authorization'));
 
 		$fieldset = new XMLElement('fieldset');
 		$fieldset->setAttribute('class', 'settings');
-
-		if($this->TwitterOAuth->http_code == 200)
-		{
+        
+		if($this->TwitterOAuth->getLastHttpCode() == 200) {
 			$this->_cookie = new Cookie(SYM_COOKIE_PREFIX . 'twitter_notifier', TWO_WEEKS, __SYM_COOKIE_PATH__);
 			$this->_cookie->set('id', $this->_account['id']);
 
@@ -61,8 +57,7 @@ class contentExtensionTwitterNotifierCallback extends AdministrationPage
 			$fieldset->appendChild(new XMLElement('legend', __('Authorization Complete')));
 			$label = Widget::Label(__('The Twitter authorization was successful.'));
 		}
-		else
-		{
+		else {
 			Symphony::Database()->query("
 				DELETE FROM `" . $this->_driver->table . "` WHERE `id` = '" . $this->_account['id'] . "';
 			");

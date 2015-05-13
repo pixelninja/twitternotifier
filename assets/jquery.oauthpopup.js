@@ -28,17 +28,17 @@
 })(jQuery);
 
 
-	jQuery(document).ready(function(){
-		jQuery('#twitter_connect').click(function(ev){
-			ev.preventDefault();
-			$path = jQuery(this).val();
-			jQuery.oauthpopup({
-				"path": $path,
-				"windowName": "authorize",
-				"windowOptions": "scrollbars=yes",
-				"callback": function(){
-					window.location.reload();
-				}
-			});
-		});
-	});
+jQuery(document).ready(function(){
+    jQuery('#twitter_connect').click(function(ev){
+        ev.preventDefault();
+        $path = jQuery(this).val();
+        jQuery.oauthpopup({
+            "path": $path,
+            "windowName": "authorize",
+            "windowOptions": "scrollbars=yes",
+            "callback": function(){
+                window.location.reload();
+            }
+        });
+    });
+});
